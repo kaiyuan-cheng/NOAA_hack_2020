@@ -1,5 +1,0 @@
-#!/bin/bash
-
-cd exec.acc
-make clean
-make OPENACC=on 
