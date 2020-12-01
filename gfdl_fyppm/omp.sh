@@ -1,5 +1,7 @@
 #!/bin/bash
 
-export OMP_NUM_THREADS=4
+thread=2
 
-srun -A hackathon -p batch -N 1 -c 4 --gres=gpu:1 -t 0:30:00  ../exec.omp/fyppm.x
+export OMP_NUM_THREADS=$thread
+
+srun -A hackathon -p batch -N 1 -c $thread --gres=gpu:1 -t 0:30:00  ./exec.omp/fyppm.x

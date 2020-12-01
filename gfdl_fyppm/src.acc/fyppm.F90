@@ -287,6 +287,7 @@ module fyppm_mod
        ! jord=12: Huynh 2nd constraint (Lin 2004) + positive definite (Lin & Rood 1996)
        ! jord>12: positive definite only (Lin & Rood 1996)
 !$ACC kernels present(flux,dm,q,c,dya,al,bl,br,dq) async
+!!$ACC kernels present(flux,dm,q,c,dya,al,bl,br,dq) loop collapse(3) async
     do k = 1, km
        do j=js-2,je+2
           do i=ifirst,ilast
