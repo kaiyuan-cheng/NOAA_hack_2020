@@ -1,12 +1,9 @@
 #!/bin/bash
 module load nvhpc/20.9/netcdf-fortran/4.5.3 nvhpc/20.9/netcdf-c/4.7.4-mpi compilers/nvhpc-20.9-mpi
 
-# link data for test
-ln -s /home/u00u6fucft28RGfUSC357/DATA/Riem_Solver_c_data.nc .
-
 # 1: turn on OPENACC diagnosis
 export PGI_ACC_TIME=0
 
 # cpu thread
 thread=1
-srun -N 1 --ntasks=$thread -p batch -t 00:05:00 --gres=gpu:$thread ./exec.acc/nh_core.x
+srun -N 1 --ntasks=$thread -p batch -t 00:05:00 --gres=gpu:$thread ./exec.acc/c_sw.x
