@@ -217,7 +217,7 @@ total_time = (end_time-start_time)/rate
 
   write(*,*) ' elapsed time (secs) = ', total_time
 
-print*, delpc(isc+3,jsc+3,:)
+print*, vc(isc+3,jsc+3,:)
 
 contains
 
