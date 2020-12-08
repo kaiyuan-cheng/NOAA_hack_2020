@@ -3,7 +3,9 @@ program Main
   use netcdf
   use fv_arrays_mod, only: fv_grid_type, fv_grid_bounds_type, fv_flags_type
   use sw_core_mod, only : c_sw
-
+  #ifdef _OPENACC
+  use openacc
+  #endif
   implicit none
 include 'mpif.h'
 
@@ -196,17 +198,17 @@ include 'mpif.h'
 
 
 call system_clock(start_time)
-  do i=1,100
-    do k=1,npz
-      call c_sw(delpc(isd,jsd,k), delp(isd,jsd,k),  ptc(isd,jsd,k),    &
-             pt(isd,jsd,k),    u(isd,jsd,k),    v(isd,jsd,k),    &
-              w(isd:,jsd:,k),   uc(isd,jsd,k),   vc(isd,jsd,k),    &
-             ua(isd,jsd,k),   va(isd,jsd,k), omga(isd,jsd,k),    &
-             ut(isd,jsd,k),   vt(isd,jsd,k), divgd(isd,jsd,k),   &
-             flagstruct%nord,   dt2,  hydrostatic,  .true., bd,  &
-             gridstruct, flagstruct)
-    end do
+!$ACC DATA copyin(flagstruct, dt2, hydrostatic, bd, gridstruct) copy(delp, delp, ptc, pt, u, v, w, uc , vc, ua, va, omga, ut, vt, divgd)
+  do i=1,500
+      call c_sw(npz, delpc, delp,  ptc,    &
+                pt,    u,    v,    &
+                w,   uc,  vc,    &
+                ua,   va, omga,    &
+                ut,   vt, divgd,   &
+                flagstruct%nord,   dt2,  hydrostatic,  .true., bd,  &
+                gridstruct, flagstruct)
   enddo
+!$ACC END DATA
 call system_clock(end_time)
 total_time = (end_time-start_time)/rate
 
@@ -217,7 +219,7 @@ total_time = (end_time-start_time)/rate
 
   write(*,*) ' elapsed time (secs) = ', total_time
 
-print*, delpc(isc+3,jsc+3,:)
+print*, vc(isc+3,jsc+3,:)
 
 contains
 
