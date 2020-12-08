@@ -199,7 +199,7 @@ include 'mpif.h'
 
 call system_clock(start_time)
 !$ACC DATA copyin(flagstruct, dt2, hydrostatic, bd, gridstruct) copy(delp, delp, ptc, pt, u, v, w, uc , vc, ua, va, omga, ut, vt, divgd)
-  do i=1,500
+  do i=1,100
       call c_sw(npz, delpc, delp,  ptc,    &
                 pt,    u,    v,    &
                 w,   uc,  vc,    &

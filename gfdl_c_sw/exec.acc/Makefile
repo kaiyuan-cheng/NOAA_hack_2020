@@ -1,6 +1,6 @@
 # Makefile created by mkmf $Id: mkmf,v 18.0.18.4.2.1.2.3 2013/08/21 15:04:06 Seth.Underwood Exp $ 
 
-SRCROOT = ../src.omp/
+SRCROOT = ../src.acc/
 
 include ../nvhpc.mk
 
