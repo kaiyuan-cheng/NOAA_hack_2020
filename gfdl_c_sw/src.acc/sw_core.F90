@@ -144,7 +144,6 @@ module sw_core_mod
 
       iep1 = ie+1; jep1 = je+1
 
-!!$acc enter data copyin (u,v)
 !$acc enter data copyin (gridstruct, flagstruct, bd, flagstruct%grid_type)
       call d2a2c_vect(u, v, ua, va, uc, vc, ut, vt, dord4, gridstruct, bd, &
                       npx, npy, bounded_domain, flagstruct%grid_type)
@@ -161,7 +160,6 @@ module sw_core_mod
 !$acc enter data copyin (dx,dy,dxc,dyc,rdxc,rdyc)
 !$acc enter data copyin (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
 !$acc enter data copyin (fx,fx1,fx2,fy,fy1,fy2)
-!$acc enter data copyin (wc,delpc,ptc)
 !$acc enter data copyin (rarea,rarea_c,fC,vort,ke)
 
 !$acc kernels present ( dx, dy, sin_sg, ut, vt) 
@@ -553,11 +551,9 @@ module sw_core_mod
 !$acc end kernels
 
 
-!$acc exit data copyout (ut,vt,ua,va,uc,vc)
 !$acc exit data delete (dx,dy,dxc,dyc,rdxc,rdyc)
 !$acc exit data delete (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
 !$acc exit data delete (fx,fx1,fx2,fy,fy1,fy2)
-!$acc exit data delete (wc,delpc,ptc)
 !$acc exit data delete (rarea,rarea_c,fC,vort,ke)
    end subroutine c_sw
 
@@ -717,7 +713,7 @@ module sw_core_mod
 
  divg_d = 1.e25
 !$acc enter data copyin(cos_sg, sin_sg, dyc, dxc, rarea_c) 
-!$acc enter data create(uf, vf, divg_d)
+!$acc enter data create(uf, vf)
     if (flagstruct%grid_type > 3) then
         do j=jsd,jed
            do i=isd,ied
@@ -755,7 +751,6 @@ module sw_core_mod
              divg_d(i,j) = (vf(i,j-1) - vf(i,j) + uf(i-1,j) - uf(i,j))*rarea_c(i,j)
           enddo
        enddo
-!$acc exit data copyout(divg_d)
 !$acc exit data delete(uf, vf, cos_sg, sin_sg, dyc, dxc, rarea_c)
 
 !!$       !Edges
@@ -849,7 +844,7 @@ end subroutine divergence_corner_nest
   utmp(:,:) = big_number
   vtmp(:,:) = big_number
 !$acc enter data copyin(cosa_s, rsin2) 
-!$acc enter data create(utmp, vtmp, ua, va)
+!$acc enter data create(utmp, vtmp)
  if ( bounded_domain) then
 !$acc parallel loop present(u, utmp)
      do j=jsd+1,jed-1
@@ -984,7 +979,6 @@ end subroutine divergence_corner_nest
 !---------------------------------------------
 ! 4th order interpolation for interior points:
 !---------------------------------------------
-!$acc enter data create(uc, ut)
 !$acc parallel loop present(v, uc, utmp, ut, cosa_s, rsin2)
      do j=js-1,je+1
         do i=ifirst,ilast
@@ -1125,7 +1119,6 @@ end subroutine divergence_corner_nest
         enddo
       else
 ! 4th order interpolation for interior points:
-!$acc enter data create(vc, vt)
 !$acc enter data copyin(cosa_v, rsin_v)
 !$acc parallel loop present(u, vc, vtmp, vt, cosa_v, rsin_v)
         do j=js-1,je+2
