@@ -149,8 +149,8 @@ module sw_core_mod
          endif
       endif
 
-      do j=js-1,jep1
-         do i=is-1,iep1+1
+      do i=is-1,iep1+1
+        do j=js-1,jep1
             if (ut(i,j) > 0.) then
                 ut(i,j) = dt2*ut(i,j)*dy(i,j)*sin_sg(i-1,j,3)
             else
@@ -158,8 +158,8 @@ module sw_core_mod
             end if
          enddo
       enddo
-      do j=js-1,je+2
-         do i=is-1,iep1
+      do i=is-1,iep1
+        do j=js-1,je+2
             if (vt(i,j) > 0.) then
                 vt(i,j) = dt2*vt(i,j)*dx(i,j)*sin_sg(i,j-1,4)
             else
@@ -204,8 +204,8 @@ module sw_core_mod
       else
            if (flagstruct%grid_type < 3)   &
                call fill_4corners(w, 1, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
-           do j=js-1,je+1
-              do i=is-1,ie+2
+           do i=is-1,ie+2
+             do j=js-1,je+1
                  if ( ut(i,j) > 0. ) then
                       fx1(i,j) = delp(i-1,j)
                        fx(i,j) =   pt(i-1,j)
@@ -251,8 +251,8 @@ module sw_core_mod
            enddo
       else
            if (flagstruct%grid_type < 3) call fill_4corners(w, 2, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
-           do j=js-1,je+2
               do i=is-1,ie+1
+           do j=js-1,je+2
                  if ( vt(i,j) > 0. ) then
                       fy1(i,j) = delp(i,j-1)
                        fy(i,j) =   pt(i,j-1)
@@ -267,8 +267,8 @@ module sw_core_mod
                  fy2(i,j) = fy1(i,j)*fy2(i,j)
               enddo
            enddo
-           do j=js-1,je+1
               do i=is-1,ie+1
+           do j=js-1,je+1
                  delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
                    ptc(i,j) = (pt(i,j)*delp(i,j) +   &
                               (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
@@ -288,8 +288,8 @@ module sw_core_mod
 !!! Need separate versions for nesting/single-tile
 !!!   and for cubed-sphere
       if (bounded_domain .or. flagstruct%grid_type >=3 ) then
-         do j=js-1,jep1
          do i=is-1,iep1
+         do j=js-1,jep1
             if ( ua(i,j) > 0. ) then
                ke(i,j) = uc(i,j)
             else
@@ -297,8 +297,8 @@ module sw_core_mod
             endif
          enddo
          enddo
-         do j=js-1,jep1
          do i=is-1,iep1
+         do j=js-1,jep1
             if ( va(i,j) > 0. ) then
                vort(i,j) = vc(i,j)
             else
@@ -352,8 +352,8 @@ module sw_core_mod
       endif
 
       dt4 = 0.5*dt2
-      do j=js-1,jep1
          do i=is-1,iep1
+      do j=js-1,jep1
             ke(i,j) = dt4*(ua(i,j)*ke(i,j) + va(i,j)*vort(i,j))
          enddo
       enddo
@@ -362,20 +362,20 @@ module sw_core_mod
 ! Compute circulation on C grid
 !------------------------------
 ! To consider using true co-variant winds at face edges?
-      do j=js-1,je+1
          do i=is,ie+1
+      do j=js-1,je+1
             fx(i,j) = uc(i,j) * dxc(i,j)
          enddo
       enddo
 
-      do j=js,je+1
          do i=is-1,ie+1
+      do j=js,je+1
             fy(i,j) = vc(i,j) * dyc(i,j)
          enddo
       enddo
 
-      do j=js,je+1
          do i=is,ie+1
+      do j=js,je+1
             vort(i,j) =  fx(i,j-1) - fx(i,j) - fy(i-1,j) + fy(i,j)
          enddo
       enddo
@@ -389,8 +389,8 @@ module sw_core_mod
 !----------------------------
 ! Compute absolute vorticity
 !----------------------------
-      do j=js,je+1
          do i=is,ie+1
+      do j=js,je+1
             vort(i,j) = gridstruct%fC(i,j) + gridstruct%rarea_c(i,j) * vort(i,j)
          enddo
       enddo
@@ -405,8 +405,8 @@ module sw_core_mod
 
 !! TO DO: separate versions for nesting/single-tile and cubed-sphere
       if (bounded_domain .or. flagstruct%grid_type >= 3) then
-         do j=js,je
             do i=is,iep1
+         do j=js,je
                fy1(i,j) = dt2*(v(i,j)-uc(i,j)*cosa_u(i,j))/sina_u(i,j)
                if ( fy1(i,j) > 0. ) then
                   fy(i,j) = vort(i,j)
@@ -415,8 +415,8 @@ module sw_core_mod
                endif
             enddo
          enddo
-         do j=js,jep1
             do i=is,ie
+         do j=js,jep1
                fx1(i,j) = dt2*(u(i,j)-vc(i,j)*cosa_v(i,j))/sina_v(i,j)
                if ( fx1(i,j) > 0. ) then
                   fx(i,j) = vort(i,j)
@@ -467,13 +467,13 @@ module sw_core_mod
       endif
 
 ! Update time-centered winds on the C-Grid
-      do j=js,je
          do i=is,iep1
+      do j=js,je
             uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + gridstruct%rdxc(i,j)*(ke(i-1,j)-ke(i,j))
          enddo
       enddo
-      do j=js,jep1
          do i=is,ie
+      do j=js,jep1
             vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + gridstruct%rdyc(i,j)*(ke(i,j-1)-ke(i,j))
          enddo
       enddo

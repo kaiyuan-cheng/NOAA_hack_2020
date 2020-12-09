@@ -104,8 +104,9 @@ module sw_core_mod
       real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
       real, pointer, dimension(:,:)   :: cosa_u, cosa_v
       real, pointer, dimension(:,:)   :: sina_u, sina_v
+      real, pointer, dimension(:,:)   :: rarea, rarea_c, fC !####################
 
-      real, pointer, dimension(:,:) :: dx, dy, dxc, dyc
+      real, pointer, dimension(:,:) :: dx, dy, dxc, dyc, rdxc, rdyc !################
 
       is  = bd%is
       ie  = bd%ie
@@ -130,6 +131,11 @@ module sw_core_mod
       dy      => gridstruct%dy
       dxc     => gridstruct%dxc
       dyc     => gridstruct%dyc
+      rarea    => gridstruct%rarea !###########################3
+      rarea_c  => gridstruct%rarea_c !###########################3
+      fC       => gridstruct%fC !###########################3
+      rdxc     => gridstruct%rdxc !###########################3
+      rdyc     => gridstruct%rdyc !###########################3
 
       sw_corner = gridstruct%sw_corner
       se_corner = gridstruct%se_corner
@@ -138,9 +144,11 @@ module sw_core_mod
 
       iep1 = ie+1; jep1 = je+1
 
+!$acc enter data copyin (u,v)
+!$acc enter data copyin (gridstruct, flagstruct, bd, flagstruct%grid_type)
       call d2a2c_vect(u, v, ua, va, uc, vc, ut, vt, dord4, gridstruct, bd, &
                       npx, npy, bounded_domain, flagstruct%grid_type)
-
+!$acc enter data copyin (u,v,ut,vt,uc,vc,ua,va)
       if( nord > 0 ) then
          if (bounded_domain) then
             call divergence_corner_nest(u, v, ua, va, divg_d, gridstruct, flagstruct, bd)
@@ -149,6 +157,14 @@ module sw_core_mod
          endif
       endif
 
+
+!$acc enter data copyin (dx,dy,dxc,dyc,rdxc,rdyc)
+!$acc enter data copyin (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
+!$acc enter data copyin (fx,fx1,fx2,fy,fy1,fy2)
+!$acc enter data copyin (w,delp,pt,wc,delpc,ptc)
+!$acc enter data copyin (rarea,rarea_c,fC,vort,ke)
+
+!$acc kernels present ( dx, dy, sin_sg, ut, vt) 
       do j=js-1,jep1
          do i=is-1,iep1+1
             if (ut(i,j) > 0.) then
@@ -158,6 +174,10 @@ module sw_core_mod
             end if
          enddo
       enddo
+!$acc end kernels
+
+
+!$acc kernels present ( dx, dy, sin_sg, ut, vt) 
       do j=js-1,je+2
          do i=is-1,iep1
             if (vt(i,j) > 0.) then
@@ -167,6 +187,10 @@ module sw_core_mod
             end if
          enddo
       enddo
+!$acc end kernels
+
+!!$acc exit data copyout(ut,vt)
+!!$acc exit data delete (sin_sg, dx, dy) 
 
 !----------------
 ! Transport delp:
@@ -176,6 +200,7 @@ module sw_core_mod
 
       if ( hydrostatic ) then
 #ifdef SW_DYNAMICS
+!$acc kernels present(fx1, delp, ut)
            do j=js-1,jep1
               do i=is-1,ie+2
                  if ( ut(i,j) > 0. ) then
@@ -186,7 +211,9 @@ module sw_core_mod
                  fx1(i,j) =  ut(i,j)*fx1(i,j)
               enddo
            enddo
+!$acc end kernels
 #else
+!$acc kernels present (fx, fx1, pt, delp, ut)
            do j=js-1,jep1
               do i=is-1,ie+2
                  if ( ut(i,j) > 0. ) then
@@ -200,10 +227,12 @@ module sw_core_mod
                   fx(i,j) = fx1(i,j)* fx(i,j)
               enddo
            enddo
+!$acc end kernels
 #endif
       else
            if (flagstruct%grid_type < 3)   &
                call fill_4corners(w, 1, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
+!$acc kernels present (delp, pt, w, ut, fx, fx1, fx2)
            do j=js-1,je+1
               do i=is-1,ie+2
                  if ( ut(i,j) > 0. ) then
@@ -220,11 +249,13 @@ module sw_core_mod
                  fx2(i,j) = fx1(i,j)*fx2(i,j)
               enddo
            enddo
+!$acc end kernels
       endif
 
 ! Ydir:
       if (flagstruct%grid_type < 3 .and. .not. bounded_domain) call fill2_4corners(delp, pt, 2, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
       if ( hydrostatic ) then
+!$acc kernels present(fy,fy1,pt,delp,ut,vt)
            do j=js-1,jep1+1
               do i=is-1,iep1
                  if ( vt(i,j) > 0. ) then
@@ -238,19 +269,26 @@ module sw_core_mod
                   fy(i,j) = fy1(i,j)* fy(i,j)
               enddo
            enddo
+!$acc end kernels
+
+!$acc kernels present(fx,fy,fx1,fy1,pt,ptc,delp,ut, delpc,rarea)
            do j=js-1,jep1
               do i=is-1,iep1
-                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
+                 !delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
+                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*rarea(i,j)
 #ifdef SW_DYNAMICS
                    ptc(i,j) = pt(i,j)
 #else
                    ptc(i,j) = (pt(i,j)*delp(i,j) +   &
-                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                              !(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*rarea(i,j))/delpc(i,j)
 #endif
               enddo
            enddo
+!$acc end kernels
       else
            if (flagstruct%grid_type < 3) call fill_4corners(w, 2, bd, npx, npy, sw_corner, se_corner, ne_corner, nw_corner)
+!$acc kernels present(w,fx1,fy,fy1,fy2,pt,delp,ut,vt,pt, delpc)
            do j=js-1,je+2
               do i=is-1,ie+1
                  if ( vt(i,j) > 0. ) then
@@ -267,15 +305,21 @@ module sw_core_mod
                  fy2(i,j) = fy1(i,j)*fy2(i,j)
               enddo
            enddo
+!$acc end kernels
+!$acc kernels present(fx,fx1,fx2,fy,fy1,fy2,pt,delp,ut, delpc,ptc,w,wc,rarea)
            do j=js-1,je+1
               do i=is-1,ie+1
-                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
+                 !delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*gridstruct%rarea(i,j)
+                 delpc(i,j) = delp(i,j) + (fx1(i,j)-fx1(i+1,j)+fy1(i,j)-fy1(i,j+1))*rarea(i,j)
                    ptc(i,j) = (pt(i,j)*delp(i,j) +   &
-                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                              !(fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                              (fx(i,j)-fx(i+1,j)+fy(i,j)-fy(i,j+1))*rarea(i,j))/delpc(i,j)
                     wc(i,j) = (w(i,j)*delp(i,j) + (fx2(i,j)-fx2(i+1,j) +    &
-                               fy2(i,j)-fy2(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                               !fy2(i,j)-fy2(i,j+1))*gridstruct%rarea(i,j))/delpc(i,j)
+                               fy2(i,j)-fy2(i,j+1))*rarea(i,j))/delpc(i,j)
               enddo
            enddo
+!$acc end kernels
       endif
 
 !------------
@@ -288,6 +332,7 @@ module sw_core_mod
 !!! Need separate versions for nesting/single-tile
 !!!   and for cubed-sphere
       if (bounded_domain .or. flagstruct%grid_type >=3 ) then
+!$acc kernels present(ua,uc,ke)
          do j=js-1,jep1
          do i=is-1,iep1
             if ( ua(i,j) > 0. ) then
@@ -297,6 +342,8 @@ module sw_core_mod
             endif
          enddo
          enddo
+!$acc end kernels
+!$acc kernels present(va,vc,vort)
          do j=js-1,jep1
          do i=is-1,iep1
             if ( va(i,j) > 0. ) then
@@ -306,7 +353,9 @@ module sw_core_mod
             endif
          enddo
          enddo
+!$acc end kernels
       else
+!$acc kernels present(ua,uc,ke,sin_sg,cos_sg)
          do j=js-1,jep1
          do i=is-1,iep1
             if ( ua(i,j) > 0. ) then
@@ -328,6 +377,8 @@ module sw_core_mod
             endif
          enddo
          enddo
+!$acc end kernels
+!$acc kernels present(va,vc,vort,sin_sg,cos_sg)
          do j=js-1,jep1
             do i=is-1,iep1
                if ( va(i,j) > 0. ) then
@@ -349,36 +400,46 @@ module sw_core_mod
                endif
             enddo
          enddo
+!$acc end kernels
       endif
 
       dt4 = 0.5*dt2
+!$acc kernels present(ua,va,vort,ke)
       do j=js-1,jep1
          do i=is-1,iep1
             ke(i,j) = dt4*(ua(i,j)*ke(i,j) + va(i,j)*vort(i,j))
          enddo
       enddo
+!$acc end kernels
 
 !------------------------------
 ! Compute circulation on C grid
 !------------------------------
 ! To consider using true co-variant winds at face edges?
+!$acc kernels present(fx,uc,dxc)
       do j=js-1,je+1
          do i=is,ie+1
             fx(i,j) = uc(i,j) * dxc(i,j)
          enddo
       enddo
-
+!$acc end kernels
+!$acc kernels present(fy,vc,dyc)
       do j=js,je+1
          do i=is-1,ie+1
             fy(i,j) = vc(i,j) * dyc(i,j)
          enddo
       enddo
+!$acc end kernels
 
+!$acc kernels present(fx,fy,vort)
       do j=js,je+1
          do i=is,ie+1
             vort(i,j) =  fx(i,j-1) - fx(i,j) - fy(i-1,j) + fy(i,j)
          enddo
       enddo
+!$acc end kernels
+!!$acc exit data copyout (vort,ke,fy)
+!!$acc exit data delete (uc,vc,sin_sg,cos_sg,ua,va,fx,dxc,dyc) 
 
 ! Remove the extra term at the corners:
       if ( sw_corner ) vort(1,    1) = vort(1,    1) + fy(0,   1)
@@ -389,11 +450,16 @@ module sw_core_mod
 !----------------------------
 ! Compute absolute vorticity
 !----------------------------
+!$acc kernels present(fC,rarea_c,vort)
       do j=js,je+1
          do i=is,ie+1
-            vort(i,j) = gridstruct%fC(i,j) + gridstruct%rarea_c(i,j) * vort(i,j)
+            !vort(i,j) = gridstruct%fC(i,j) + gridstruct%rarea_c(i,j) * vort(i,j)
+            vort(i,j) = fC(i,j) + rarea_c(i,j) * vort(i,j)
          enddo
       enddo
+!$acc end kernels
+!!$acc exit data copyout (vort,ke,fy)
+!!$acc exit data delete (uc,vc,sin_sg,cos_sg,ua,va,fx,dxc,dyc,fC,rarea_c) 
 
 !----------------------------------
 ! Transport absolute vorticity:
@@ -405,6 +471,7 @@ module sw_core_mod
 
 !! TO DO: separate versions for nesting/single-tile and cubed-sphere
       if (bounded_domain .or. flagstruct%grid_type >= 3) then
+!$acc kernels present(fy,fy1,uc,v,cosa_u,sina_u,vort)
          do j=js,je
             do i=is,iep1
                fy1(i,j) = dt2*(v(i,j)-uc(i,j)*cosa_u(i,j))/sina_u(i,j)
@@ -415,6 +482,8 @@ module sw_core_mod
                endif
             enddo
          enddo
+!$acc end kernels
+!$acc kernels present(fx,fx1,u,vc,cosa_u,sina_u,vort)
          do j=js,jep1
             do i=is,ie
                fx1(i,j) = dt2*(u(i,j)-vc(i,j)*cosa_v(i,j))/sina_v(i,j)
@@ -425,7 +494,9 @@ module sw_core_mod
                endif
             enddo
          enddo
+!$acc end kernels
       else
+!$acc kernels present(fy,fy1,uc,v,cosa_u,sina_u,vort)
          do j=js,je
 !DEC$ VECTOR ALWAYS
             do i=is,iep1
@@ -441,6 +512,8 @@ module sw_core_mod
                endif
             enddo
          enddo
+!$acc end kernels
+!$acc kernels present(fx,fx1,u,vc,cosa_v,sina_v,vort)
          do j=js,jep1
             if ( ( j==1 .or. j==npy ) ) then
 !DEC$ VECTOR ALWAYS
@@ -464,20 +537,34 @@ module sw_core_mod
                enddo
             endif
          enddo
+!$acc end kernels
       endif
 
 ! Update time-centered winds on the C-Grid
+!$acc kernels present(uc,fy1,fy,rdxc,ke)
       do j=js,je
          do i=is,iep1
-            uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + gridstruct%rdxc(i,j)*(ke(i-1,j)-ke(i,j))
+            !uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + gridstruct%rdxc(i,j)*(ke(i-1,j)-ke(i,j))
+            uc(i,j) = uc(i,j) + fy1(i,j)*fy(i,j) + rdxc(i,j)*(ke(i-1,j)-ke(i,j))
          enddo
       enddo
+!$acc end kernels
+!$acc kernels present(vc,fx1,fx,rdyc,ke)
       do j=js,jep1
          do i=is,ie
-            vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + gridstruct%rdyc(i,j)*(ke(i,j-1)-ke(i,j))
+            !vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + gridstruct%rdyc(i,j)*(ke(i,j-1)-ke(i,j))
+            vc(i,j) = vc(i,j) - fx1(i,j)*fx(i,j) + rdyc(i,j)*(ke(i,j-1)-ke(i,j))
          enddo
       enddo
+!$acc end kernels
 
+
+!$acc exit data copyout (u,v,ut,vt,ua,va,uc,vc)
+!$acc exit data delete (dx,dy,dxc,dyc,rdxc,rdyc)
+!$acc exit data delete (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
+!$acc exit data delete (fx,fx1,fx2,fy,fy1,fy2)
+!$acc exit data delete (w,delp,pt,wc,delpc,ptc)
+!$acc exit data delete (rarea,rarea_c,fC,vort,ke)
    end subroutine c_sw
 
 
@@ -635,7 +722,9 @@ module sw_core_mod
       dyc        => gridstruct%dyc
 
  divg_d = 1.e25
-
+!!$acc enter data copyin(u, v, ua, va, cos_sg, sin_sg, dyc, dxc, rarea_c) 
+!$acc enter data copyin(cos_sg, sin_sg, dyc, dxc, rarea_c) 
+!$acc enter data create(uf, vf, divg_d)
     if (flagstruct%grid_type > 3) then
         do j=jsd,jed
            do i=isd,ied
@@ -653,26 +742,29 @@ module sw_core_mod
            enddo
         enddo
     else
-
+!$acc parallel loop present(uf, u, va, cos_sg, sin_sg, dyc)
        do j=jsd+1,jed
           do i=isd,ied
             uf(i,j) = (u(i,j)-0.25*(va(i,j-1)+va(i,j))*(cos_sg(i,j-1,4)+cos_sg(i,j,2)))   &
                                         * dyc(i,j)*0.5*(sin_sg(i,j-1,4)+sin_sg(i,j,2))
           enddo
        enddo
-
+!$acc parallel loop present(vf, v, ua, cos_sg, sin_sg, dxc)
        do j=jsd,jed
           do i=isd+1,ied
              vf(i,j) = (v(i,j) - 0.25*(ua(i-1,j)+ua(i,j))*(cos_sg(i-1,j,3)+cos_sg(i,j,1)))  &
                   *dxc(i,j)*0.5*(sin_sg(i-1,j,3)+sin_sg(i,j,1))
           enddo
        enddo
-
+!$acc parallel loop present(divg_d, vf, uf, rarea_c)
        do j=jsd+1,jed
           do i=isd+1,ied
              divg_d(i,j) = (vf(i,j-1) - vf(i,j) + uf(i-1,j) - uf(i,j))*rarea_c(i,j)
           enddo
        enddo
+!$acc exit data copyout(divg_d)
+!!$acc exit data delete(uf, vf, u, v, ua, va, cos_sg, sin_sg, dyc, dxc, rarea_c)
+!$acc exit data delete(uf, vf, cos_sg, sin_sg, dyc, dxc, rarea_c)
 
 !!$       !Edges
 !!$
@@ -764,21 +856,24 @@ end subroutine divergence_corner_nest
 ! Initialize the non-existing corner regions
   utmp(:,:) = big_number
   vtmp(:,:) = big_number
-
+!!$acc enter data copyin(u, v)
+!$acc enter data copyin(cosa_s, rsin2) 
+!$acc enter data create(utmp, vtmp, ua, va)
  if ( bounded_domain) then
-
+!$acc parallel loop present(u, utmp)
      do j=jsd+1,jed-1
         do i=isd,ied
            utmp(i,j) = a2*(u(i,j-1)+u(i,j+2)) + a1*(u(i,j)+u(i,j+1))
         enddo
      enddo
+!$acc parallel loop present(u, utmp)
      do i=isd,ied
         j = jsd
         utmp(i,j) = 0.5*(u(i,j)+u(i,j+1))
         j = jed
         utmp(i,j) = 0.5*(u(i,j)+u(i,j+1))
      end do
-
+!$acc parallel loop present(v, vtmp)
      do j=jsd,jed
         do i=isd+1,ied-1
            vtmp(i,j) = a2*(v(i-1,j)+v(i+2,j)) + a1*(v(i,j)+v(i+1,j))
@@ -788,7 +883,7 @@ end subroutine divergence_corner_nest
         i = ied
         vtmp(i,j) = 0.5*(v(i,j)+v(i+1,j))
      enddo
-
+!$acc parallel loop present(utmp, vtmp, ua, va, cosa_s, rsin2)
      do j=jsd,jed
         do i=isd,ied
            ua(i,j) = (utmp(i,j)-vtmp(i,j)*cosa_s(i,j)) * rsin2(i,j)
@@ -898,6 +993,8 @@ end subroutine divergence_corner_nest
 !---------------------------------------------
 ! 4th order interpolation for interior points:
 !---------------------------------------------
+!$acc enter data create(uc, ut)
+!$acc parallel loop present(v, uc, utmp, ut, cosa_s, rsin2)
      do j=js-1,je+1
         do i=ifirst,ilast
            uc(i,j) = a2*(utmp(i-2,j)+utmp(i+1,j)) + a1*(utmp(i-1,j)+utmp(i,j))
@@ -999,8 +1096,8 @@ end subroutine divergence_corner_nest
 
  if (grid_type < 3) then
 
-     do j=js-1,je+2
       if ( j==1 .and. .not. bounded_domain  ) then
+        do j=js-1,je+2
         do i=is-1,ie+1
            vt(i,j) = edge_interpolate4(va(i,-1:2), dya(i,-1:2))
            if (vt(i,j) > 0.) then
@@ -1009,17 +1106,23 @@ end subroutine divergence_corner_nest
               vc(i,j) = vt(i,j)*sin_sg(i,j,2)
            end if
         enddo
+        enddo
       elseif ( j==0 .or. j==(npy-1) .and. .not. bounded_domain  ) then
+        do j=js-1,je+2
         do i=is-1,ie+1
            vc(i,j) = c1*vtmp(i,j-2) + c2*vtmp(i,j-1) + c3*vtmp(i,j)
            vt(i,j) = (vc(i,j) - u(i,j)*cosa_v(i,j))*rsin_v(i,j)
         enddo
+        enddo
       elseif ( j==2 .or. j==(npy+1)  .and. .not. bounded_domain ) then
+        do j=js-1,je+2
         do i=is-1,ie+1
            vc(i,j) = c1*vtmp(i,j+1) + c2*vtmp(i,j) + c3*vtmp(i,j-1)
            vt(i,j) = (vc(i,j) - u(i,j)*cosa_v(i,j))*rsin_v(i,j)
         enddo
+        enddo
       elseif ( j==npy .and. .not. bounded_domain  ) then
+        do j=js-1,je+2
         do i=is-1,ie+1
            vt(i,j) = edge_interpolate4(va(i,j-2:j+1), dya(i,j-2:j+1))
            if (vt(i,j) > 0.) then
@@ -1028,14 +1131,19 @@ end subroutine divergence_corner_nest
               vc(i,j) = vt(i,j)*sin_sg(i,j,2)
            end if
         enddo
+        enddo
       else
 ! 4th order interpolation for interior points:
+!$acc enter data create(vc, vt)
+!$acc enter data copyin(cosa_v, rsin_v)
+!$acc parallel loop present(u, vc, vtmp, vt, cosa_v, rsin_v)
+        do j=js-1,je+2
         do i=is-1,ie+1
            vc(i,j) = a2*(vtmp(i,j-2)+vtmp(i,j+1)) + a1*(vtmp(i,j-1)+vtmp(i,j))
            vt(i,j) = (vc(i,j) - u(i,j)*cosa_v(i,j))*rsin_v(i,j)
         enddo
+        enddo
       endif
-     enddo
  else
 ! 4th order interpolation:
        do j=js-1,je+2
@@ -1045,6 +1153,11 @@ end subroutine divergence_corner_nest
           enddo
        enddo
  endif
+!$acc exit data copyout(ua,va)
+!$acc exit data copyout(vc, vt )
+!$acc exit data copyout(uc, ut )
+!$acc exit data delete(utmp, vtmp)
+!!$acc exit data delete(u, v)
 
  end subroutine d2a2c_vect
 

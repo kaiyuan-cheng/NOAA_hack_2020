@@ -6,4 +6,6 @@ export PGI_ACC_TIME=0
 
 # cpu thread
 thread=1
-srun -N 1 --ntasks=$thread -p batch -t 00:05:00 --gres=gpu:$thread ./exec.acc/c_sw.x
+#srun -N 1 --ntasks=$thread -p batch -t 00:02:00 ./exec.acc/c_sw.x
+srun -N 1 --ntasks=$thread -p batch -t 00:02:00 --gres=gpu:$thread ./exec.acc/c_sw.x
+#srun -N 1 --ntasks=$thread -p batch -t 00:02:00 --gres=gpu:$thread nsys profile --force-overwrite true -o csw.qdrep ./exec.acc/c_sw.x

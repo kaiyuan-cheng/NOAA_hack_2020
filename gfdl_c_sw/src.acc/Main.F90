@@ -1,5 +1,7 @@
 program Main
-
+#ifdef _OPENACC
+use openacc
+#endif
   use netcdf
   use fv_arrays_mod, only: fv_grid_type, fv_grid_bounds_type, fv_flags_type
   use sw_core_mod, only : c_sw
@@ -115,6 +117,8 @@ include 'mpif.h'
   flagstruct%grid_type = 0
   flagstruct%nord = 2
 
+  gridstruct%bounded_domain = .true.
+
   bd%is = isc
   bd%ie = iec
   bd%js = jsc
@@ -196,6 +200,8 @@ include 'mpif.h'
 
 
 call system_clock(start_time)
+!!$acc data copy(delp, pt, u, v, w, uc, vc, ua, va, omga, flagstruct, dt2, hydrostatic, bd, gridstruct)
+!!$acc data create(delpc, ptc, omga, ut, vt, divgd)
   do i=1,100
     do k=1,npz
       call c_sw(delpc(isd,jsd,k), delp(isd,jsd,k),  ptc(isd,jsd,k),    &
@@ -207,6 +213,7 @@ call system_clock(start_time)
              gridstruct, flagstruct)
     end do
   enddo
+!!$acc end data
 call system_clock(end_time)
 total_time = (end_time-start_time)/rate
 

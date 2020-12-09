@@ -1,8 +1,9 @@
 #!/bin/bash
 module load nvhpc/20.9/netcdf-fortran/4.5.3 nvhpc/20.9/netcdf-c/4.7.4-mpi compilers/nvhpc-20.9-mpi
 
-thread=1
+thread=4
 
 export OMP_NUM_THREADS=$thread
 
 srun -A hackathon -p batch -N 1 -c $thread -t 0:30:00  ./exec.omp/c_sw.x
+#srun -A hackathon -p batch --ntasks=$thread -t 0:30:00  ./exec.omp/c_sw.x
