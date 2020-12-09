@@ -144,11 +144,11 @@ module sw_core_mod
 
       iep1 = ie+1; jep1 = je+1
 
-!$acc enter data copyin (u,v)
+!!$acc enter data copyin (u,v)
 !$acc enter data copyin (gridstruct, flagstruct, bd, flagstruct%grid_type)
       call d2a2c_vect(u, v, ua, va, uc, vc, ut, vt, dord4, gridstruct, bd, &
                       npx, npy, bounded_domain, flagstruct%grid_type)
-!$acc enter data copyin (u,v,ut,vt,uc,vc,ua,va)
+
       if( nord > 0 ) then
          if (bounded_domain) then
             call divergence_corner_nest(u, v, ua, va, divg_d, gridstruct, flagstruct, bd)
@@ -161,7 +161,7 @@ module sw_core_mod
 !$acc enter data copyin (dx,dy,dxc,dyc,rdxc,rdyc)
 !$acc enter data copyin (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
 !$acc enter data copyin (fx,fx1,fx2,fy,fy1,fy2)
-!$acc enter data copyin (w,delp,pt,wc,delpc,ptc)
+!$acc enter data copyin (wc,delpc,ptc)
 !$acc enter data copyin (rarea,rarea_c,fC,vort,ke)
 
 !$acc kernels present ( dx, dy, sin_sg, ut, vt) 
@@ -189,8 +189,6 @@ module sw_core_mod
       enddo
 !$acc end kernels
 
-!!$acc exit data copyout(ut,vt)
-!!$acc exit data delete (sin_sg, dx, dy) 
 
 !----------------
 ! Transport delp:
@@ -438,8 +436,6 @@ module sw_core_mod
          enddo
       enddo
 !$acc end kernels
-!!$acc exit data copyout (vort,ke,fy)
-!!$acc exit data delete (uc,vc,sin_sg,cos_sg,ua,va,fx,dxc,dyc) 
 
 ! Remove the extra term at the corners:
       if ( sw_corner ) vort(1,    1) = vort(1,    1) + fy(0,   1)
@@ -458,8 +454,6 @@ module sw_core_mod
          enddo
       enddo
 !$acc end kernels
-!!$acc exit data copyout (vort,ke,fy)
-!!$acc exit data delete (uc,vc,sin_sg,cos_sg,ua,va,fx,dxc,dyc,fC,rarea_c) 
 
 !----------------------------------
 ! Transport absolute vorticity:
@@ -559,11 +553,11 @@ module sw_core_mod
 !$acc end kernels
 
 
-!$acc exit data copyout (u,v,ut,vt,ua,va,uc,vc)
+!$acc exit data copyout (ut,vt,ua,va,uc,vc)
 !$acc exit data delete (dx,dy,dxc,dyc,rdxc,rdyc)
 !$acc exit data delete (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
 !$acc exit data delete (fx,fx1,fx2,fy,fy1,fy2)
-!$acc exit data delete (w,delp,pt,wc,delpc,ptc)
+!$acc exit data delete (wc,delpc,ptc)
 !$acc exit data delete (rarea,rarea_c,fC,vort,ke)
    end subroutine c_sw
 
@@ -722,7 +716,6 @@ module sw_core_mod
       dyc        => gridstruct%dyc
 
  divg_d = 1.e25
-!!$acc enter data copyin(u, v, ua, va, cos_sg, sin_sg, dyc, dxc, rarea_c) 
 !$acc enter data copyin(cos_sg, sin_sg, dyc, dxc, rarea_c) 
 !$acc enter data create(uf, vf, divg_d)
     if (flagstruct%grid_type > 3) then
@@ -763,7 +756,6 @@ module sw_core_mod
           enddo
        enddo
 !$acc exit data copyout(divg_d)
-!!$acc exit data delete(uf, vf, u, v, ua, va, cos_sg, sin_sg, dyc, dxc, rarea_c)
 !$acc exit data delete(uf, vf, cos_sg, sin_sg, dyc, dxc, rarea_c)
 
 !!$       !Edges
@@ -856,7 +848,6 @@ end subroutine divergence_corner_nest
 ! Initialize the non-existing corner regions
   utmp(:,:) = big_number
   vtmp(:,:) = big_number
-!!$acc enter data copyin(u, v)
 !$acc enter data copyin(cosa_s, rsin2) 
 !$acc enter data create(utmp, vtmp, ua, va)
  if ( bounded_domain) then
@@ -1153,11 +1144,7 @@ end subroutine divergence_corner_nest
           enddo
        enddo
  endif
-!$acc exit data copyout(ua,va)
-!$acc exit data copyout(vc, vt )
-!$acc exit data copyout(uc, ut )
 !$acc exit data delete(utmp, vtmp)
-!!$acc exit data delete(u, v)
 
  end subroutine d2a2c_vect
 

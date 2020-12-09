@@ -200,9 +200,9 @@ include 'mpif.h'
 
 
 call system_clock(start_time)
-!!$acc data copy(delp, pt, u, v, w, uc, vc, ua, va, omga, flagstruct, dt2, hydrostatic, bd, gridstruct)
+!$acc data copy(u, v, w, delp, pt)
 !!$acc data create(delpc, ptc, omga, ut, vt, divgd)
-  do i=1,100
+  do i=1,10
     do k=1,npz
       call c_sw(delpc(isd,jsd,k), delp(isd,jsd,k),  ptc(isd,jsd,k),    &
              pt(isd,jsd,k),    u(isd,jsd,k),    v(isd,jsd,k),    &
@@ -213,7 +213,7 @@ call system_clock(start_time)
              gridstruct, flagstruct)
     end do
   enddo
-!!$acc end data
+!$acc end data
 call system_clock(end_time)
 total_time = (end_time-start_time)/rate
 
