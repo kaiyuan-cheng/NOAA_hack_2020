@@ -63,11 +63,58 @@ module sw_core_mod
   real, parameter:: b5 = -0.05
 
 
+  real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
+  real, pointer, dimension(:,:)   :: cosa_u, cosa_v, cosa_s
+  real, pointer, dimension(:,:)   :: sina_u, sina_v
+  real, pointer, dimension(:,:)   :: rarea, rarea_c, fC
+
+  real, pointer, dimension(:,:)   :: dx, dy, dxc, dyc, rdxc, rdyc
+  real, pointer, dimension(:,:)   :: rsin_u, rsin_v, rsin2
+  real, pointer, dimension(:,:)   :: dxa,dya
+
+
       private
-      public c_sw
+      public c_sw, allocate_pointer_c_sw
 
   contains
 
+
+   subroutine allocate_pointer_c_sw(gridstruct)
+
+      type(fv_grid_type),  intent(IN), target :: gridstruct
+      
+      
+      sin_sg  => gridstruct%sin_sg
+      cos_sg  => gridstruct%cos_sg
+      cosa_u  => gridstruct%cosa_u
+      cosa_v  => gridstruct%cosa_v
+      cosa_s  => gridstruct%cosa_s
+      sina_u  => gridstruct%sina_u
+      sina_v  => gridstruct%sina_v
+      dx      => gridstruct%dx
+      dy      => gridstruct%dy
+      dxc     => gridstruct%dxc
+      dyc     => gridstruct%dyc
+      rarea   => gridstruct%rarea !###########################3
+      rarea_c => gridstruct%rarea_c !###########################3
+      fC      => gridstruct%fC !###########################3
+      rdxc    => gridstruct%rdxc !###########################3
+      rdyc    => gridstruct%rdyc !###########################3
+      rsin_u    => gridstruct%rsin_u
+      rsin_v    => gridstruct%rsin_v
+      rsin2     => gridstruct%rsin2
+      dxa       => gridstruct%dxa
+      dya       => gridstruct%dya
+
+!$acc enter data copyin(dx, dy, dxc, dyc, dxa, dya, rdxc, rdyc)
+!$acc enter data copyin(sina_u,sina_v, cosa_u,cosa_v)
+!$acc enter data copyin(rarea, rarea_c, fC)
+!$acc enter data copyin(cos_sg, sin_sg) 
+!$acc enter data copyin(cosa_s, rsin2) 
+!$acc enter data copyin(rsin_v)
+
+
+   end subroutine allocate_pointer_c_sw
 
    subroutine c_sw(delpc, delp, ptc, pt, u,v, w, uc,vc, ua,va, wc,  &
                    ut, vt, divg_d, nord, dt2, hydrostatic, dord4, &
@@ -101,12 +148,6 @@ module sw_core_mod
       integer :: npx, npy
       logical :: bounded_domain
 
-      real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
-      real, pointer, dimension(:,:)   :: cosa_u, cosa_v
-      real, pointer, dimension(:,:)   :: sina_u, sina_v
-      real, pointer, dimension(:,:)   :: rarea, rarea_c, fC !####################
-
-      real, pointer, dimension(:,:) :: dx, dy, dxc, dyc, rdxc, rdyc !################
 
       is  = bd%is
       ie  = bd%ie
@@ -121,21 +162,6 @@ module sw_core_mod
       npy = flagstruct%npy
       bounded_domain = gridstruct%bounded_domain
 
-      sin_sg  => gridstruct%sin_sg
-      cos_sg  => gridstruct%cos_sg
-      cosa_u  => gridstruct%cosa_u
-      cosa_v  => gridstruct%cosa_v
-      sina_u  => gridstruct%sina_u
-      sina_v  => gridstruct%sina_v
-      dx      => gridstruct%dx
-      dy      => gridstruct%dy
-      dxc     => gridstruct%dxc
-      dyc     => gridstruct%dyc
-      rarea    => gridstruct%rarea !###########################3
-      rarea_c  => gridstruct%rarea_c !###########################3
-      fC       => gridstruct%fC !###########################3
-      rdxc     => gridstruct%rdxc !###########################3
-      rdyc     => gridstruct%rdyc !###########################3
 
       sw_corner = gridstruct%sw_corner
       se_corner = gridstruct%se_corner
@@ -157,10 +183,7 @@ module sw_core_mod
       endif
 
 
-!$acc enter data copyin (dx,dy,dxc,dyc,rdxc,rdyc)
-!$acc enter data copyin (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
-!$acc enter data copyin (fx,fx1,fx2,fy,fy1,fy2)
-!$acc enter data copyin (rarea,rarea_c,fC,vort,ke)
+!$acc enter data create (fx,fx1,fx2,fy,fy1,fy2,vort,ke)
 
 !$acc kernels present ( dx, dy, sin_sg, ut, vt) 
       do j=js-1,jep1
@@ -551,10 +574,8 @@ module sw_core_mod
 !$acc end kernels
 
 
-!$acc exit data delete (dx,dy,dxc,dyc,rdxc,rdyc)
-!$acc exit data delete (sin_sg,sina_u,sina_v,cos_sg,cosa_u,cosa_v)
 !$acc exit data delete (fx,fx1,fx2,fy,fy1,fy2)
-!$acc exit data delete (rarea,rarea_c,fC,vort,ke)
+!$acc exit data delete (vort,ke)
    end subroutine c_sw
 
 
@@ -575,8 +596,6 @@ module sw_core_mod
  integer i,j
  integer is2, ie1
 
- real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
- real, pointer, dimension(:,:) ::  dxc,dyc
 
       integer :: is,  ie,  js,  je
       integer :: npx, npy
@@ -591,10 +610,6 @@ module sw_core_mod
       npy = flagstruct%npy
       bounded_domain = gridstruct%bounded_domain
 
-      sin_sg     => gridstruct%sin_sg
-      cos_sg     => gridstruct%cos_sg
-      dxc        => gridstruct%dxc
-      dyc        => gridstruct%dyc
 
  if (bounded_domain) then
     is2 = is;        ie1 = ie+1
@@ -683,12 +698,6 @@ module sw_core_mod
  integer i,j
 
 
-  real, pointer, dimension(:,:) :: rarea_c
-
-  real, pointer, dimension(:,:,:) :: sin_sg, cos_sg
-  real, pointer, dimension(:,:)   :: cosa_u, cosa_v
-  real, pointer, dimension(:,:)   :: sina_u, sina_v
-  real, pointer, dimension(:,:) ::  dxc,dyc
 
       integer :: isd, ied, jsd, jed
       integer :: npx, npy
@@ -701,18 +710,8 @@ module sw_core_mod
       npx = flagstruct%npx
       npy = flagstruct%npy
 
-      rarea_c    => gridstruct%rarea_c
-      sin_sg     => gridstruct%sin_sg
-      cos_sg     => gridstruct%cos_sg
-      cosa_u     => gridstruct%cosa_u
-      cosa_v     => gridstruct%cosa_v
-      sina_u     => gridstruct%sina_u
-      sina_v     => gridstruct%sina_v
-      dxc        => gridstruct%dxc
-      dyc        => gridstruct%dyc
 
  divg_d = 1.e25
-!$acc enter data copyin(cos_sg, sin_sg, dyc, dxc, rarea_c) 
 !$acc enter data create(uf, vf)
     if (flagstruct%grid_type > 3) then
         do j=jsd,jed
@@ -751,7 +750,7 @@ module sw_core_mod
              divg_d(i,j) = (vf(i,j-1) - vf(i,j) + uf(i-1,j) - uf(i,j))*rarea_c(i,j)
           enddo
        enddo
-!$acc exit data delete(uf, vf, cos_sg, sin_sg, dyc, dxc, rarea_c)
+!$acc exit data delete(uf, vf)
 
 !!$       !Edges
 !!$
@@ -804,10 +803,6 @@ end subroutine divergence_corner_nest
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
 
-  real, pointer, dimension(:,:,:) :: sin_sg
-  real, pointer, dimension(:,:)   :: cosa_u, cosa_v, cosa_s
-  real, pointer, dimension(:,:)   :: rsin_u, rsin_v, rsin2
-  real, pointer, dimension(:,:)   :: dxa,dya
 
       is  = bd%is
       ie  = bd%ie
@@ -818,15 +813,6 @@ end subroutine divergence_corner_nest
       jsd = bd%jsd
       jed = bd%jed
 
-      sin_sg    => gridstruct%sin_sg
-      cosa_u    => gridstruct%cosa_u
-      cosa_v    => gridstruct%cosa_v
-      cosa_s    => gridstruct%cosa_s
-      rsin_u    => gridstruct%rsin_u
-      rsin_v    => gridstruct%rsin_v
-      rsin2     => gridstruct%rsin2
-      dxa       => gridstruct%dxa
-      dya       => gridstruct%dya
 
   if ( dord4 ) then
        id = 1
@@ -843,7 +829,6 @@ end subroutine divergence_corner_nest
 ! Initialize the non-existing corner regions
   utmp(:,:) = big_number
   vtmp(:,:) = big_number
-!$acc enter data copyin(cosa_s, rsin2) 
 !$acc enter data create(utmp, vtmp)
  if ( bounded_domain) then
 !$acc parallel loop present(u, utmp)
@@ -1119,7 +1104,6 @@ end subroutine divergence_corner_nest
         enddo
       else
 ! 4th order interpolation for interior points:
-!$acc enter data copyin(cosa_v, rsin_v)
 !$acc parallel loop present(u, vc, vtmp, vt, cosa_v, rsin_v)
         do j=js-1,je+2
         do i=is-1,ie+1

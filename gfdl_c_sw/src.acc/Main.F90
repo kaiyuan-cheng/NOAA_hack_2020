@@ -4,7 +4,7 @@ use openacc
 #endif
   use netcdf
   use fv_arrays_mod, only: fv_grid_type, fv_grid_bounds_type, fv_flags_type
-  use sw_core_mod, only : c_sw
+  use sw_core_mod, only : c_sw, allocate_pointer_c_sw
 
   implicit none
 include 'mpif.h'
@@ -202,6 +202,8 @@ include 'mpif.h'
 call system_clock(start_time)
 !$acc enter data copyin(u, v, w, delp, pt, ut, vt, uc, vc, ua, va) 
 !$acc enter data create(delpc, ptc, omga, divgd)
+
+call allocate_pointer_c_sw(gridstruct)
   do i=1,100
     do k=1,npz
       call c_sw(delpc(isd,jsd,k), delp(isd,jsd,k),  ptc(isd,jsd,k),    &
