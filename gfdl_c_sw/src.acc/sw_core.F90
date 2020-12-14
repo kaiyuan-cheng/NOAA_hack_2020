@@ -72,13 +72,39 @@ module sw_core_mod
   real, pointer, dimension(:,:)   :: rsin_u, rsin_v, rsin2
   real, pointer, dimension(:,:)   :: dxa,dya
 
+  real, allocatable, dimension(:,:)   :: vtmp
+  real, allocatable, dimension(:,:)   :: uf, vf
+  real, allocatable, dimension(:,:)   :: fx, fx1, fx2
+  real, allocatable, dimension(:,:)   :: fy, fy1, fy2
+  
+  real, allocatable, dimension(:,:)   :: vort, ke
 
-      private
-      public c_sw, allocate_pointer_c_sw
+  private
+  public c_sw, allocate_pointer_c_sw, allocate_variable_c_sw
 
   contains
+   subroutine allocate_variable_c_sw(bd)
+      type(fv_grid_bounds_type), intent(IN) :: bd
 
+      allocate(vtmp(bd%isd:bd%ied,bd%jsd:bd%jed))
+      allocate(uf(bd%isd:bd%ied,bd%jsd:bd%jed+1))
+      allocate(vf(bd%isd:bd%ied+1,bd%jsd:bd%jed))
+      allocate(fx(bd%is-1:bd%ie+2,bd%js-1:bd%je+1))
+      allocate(fx1(bd%is-1:bd%ie+2,bd%js-1:bd%je+1))
+      allocate(fx2(bd%is-1:bd%ie+2,bd%js-1:bd%je+1))
+      allocate(fy(bd%is-1:bd%ie+1,bd%js-1:bd%je+2))
+      allocate(fy1(bd%is-1:bd%ie+1,bd%js-1:bd%je+2))
+      allocate(fy2(bd%is-1:bd%ie+1,bd%js-1:bd%je+2))
+      allocate(vort(bd%is-1:bd%ie+1,bd%js-1:bd%je+1))
+      allocate(ke(bd%is-1:bd%ie+1,bd%js-1:bd%je+1))
+!!$declare device(utmp)
+!!$acc enter data create(utmp, vtmp)
+!$acc enter data create(vtmp)
+!$acc enter data create(uf, vf)
+!$acc enter data create (fx,fx1,fx2,fy,fy1,fy2,vort,ke)
 
+   end subroutine allocate_variable_c_sw
+   
    subroutine allocate_pointer_c_sw(gridstruct)
 
       type(fv_grid_type),  intent(IN), target :: gridstruct
@@ -111,7 +137,7 @@ module sw_core_mod
 !$acc enter data copyin(rarea, rarea_c, fC)
 !$acc enter data copyin(cos_sg, sin_sg) 
 !$acc enter data copyin(cosa_s, rsin2) 
-!$acc enter data copyin(rsin_v)
+!$acc enter data copyin(rsin_v,rsin_u)
 
 
    end subroutine allocate_pointer_c_sw
@@ -136,9 +162,6 @@ module sw_core_mod
 
 ! Local:
       logical:: sw_corner, se_corner, ne_corner, nw_corner
-      real, dimension(bd%is-1:bd%ie+1,bd%js-1:bd%je+1):: vort, ke
-      real, dimension(bd%is-1:bd%ie+2,bd%js-1:bd%je+1):: fx, fx1, fx2
-      real, dimension(bd%is-1:bd%ie+1,bd%js-1:bd%je+2):: fy, fy1, fy2
       real :: dt4
       integer :: i,j, is2, ie1
       integer iep1, jep1
@@ -170,7 +193,7 @@ module sw_core_mod
 
       iep1 = ie+1; jep1 = je+1
 
-!$acc enter data copyin (gridstruct, flagstruct, bd, flagstruct%grid_type)
+!!$acc enter data copyin (gridstruct, flagstruct, bd, flagstruct%grid_type)
       call d2a2c_vect(u, v, ua, va, uc, vc, ut, vt, dord4, gridstruct, bd, &
                       npx, npy, bounded_domain, flagstruct%grid_type)
 
@@ -183,9 +206,8 @@ module sw_core_mod
       endif
 
 
-!$acc enter data create (fx,fx1,fx2,fy,fy1,fy2,vort,ke)
 
-!$acc kernels present ( dx, dy, sin_sg, ut, vt) 
+!$acc kernels present ( dx, dy, sin_sg, ut) 
       do j=js-1,jep1
          do i=is-1,iep1+1
             if (ut(i,j) > 0.) then
@@ -198,7 +220,7 @@ module sw_core_mod
 !$acc end kernels
 
 
-!$acc kernels present ( dx, dy, sin_sg, ut, vt) 
+!$acc kernels present ( dx, dy, sin_sg, vt) 
       do j=js-1,je+2
          do i=is-1,iep1
             if (vt(i,j) > 0.) then
@@ -374,7 +396,7 @@ module sw_core_mod
          enddo
 !$acc end kernels
       else
-!$acc kernels present(ua,uc,ke,sin_sg,cos_sg)
+!$acc kernels present(ua,uc,ke,sin_sg,cos_sg,v)
          do j=js-1,jep1
          do i=is-1,iep1
             if ( ua(i,j) > 0. ) then
@@ -397,7 +419,7 @@ module sw_core_mod
          enddo
          enddo
 !$acc end kernels
-!$acc kernels present(va,vc,vort,sin_sg,cos_sg)
+!$acc kernels present(va,vc,vort,sin_sg,cos_sg,u)
          do j=js-1,jep1
             do i=is-1,iep1
                if ( va(i,j) > 0. ) then
@@ -498,7 +520,7 @@ module sw_core_mod
             enddo
          enddo
 !$acc end kernels
-!$acc kernels present(fx,fx1,u,vc,cosa_u,sina_u,vort)
+!$acc kernels present(fx,fx1,u,vc,cosa_v,sina_v,vort)
          do j=js,jep1
             do i=is,ie
                fx1(i,j) = dt2*(u(i,j)-vc(i,j)*cosa_v(i,j))/sina_v(i,j)
@@ -573,9 +595,6 @@ module sw_core_mod
       enddo
 !$acc end kernels
 
-
-!$acc exit data delete (fx,fx1,fx2,fy,fy1,fy2)
-!$acc exit data delete (vort,ke)
    end subroutine c_sw
 
 
@@ -693,8 +712,6 @@ module sw_core_mod
  type(fv_flags_type), intent(IN), target :: flagstruct
 
 ! local
- real uf(bd%isd:bd%ied,bd%jsd:bd%jed+1)
- real vf(bd%isd:bd%ied+1,bd%jsd:bd%jed)
  integer i,j
 
 
@@ -712,7 +729,6 @@ module sw_core_mod
 
 
  divg_d = 1.e25
-!$acc enter data create(uf, vf)
     if (flagstruct%grid_type > 3) then
         do j=jsd,jed
            do i=isd,ied
@@ -750,7 +766,6 @@ module sw_core_mod
              divg_d(i,j) = (vf(i,j-1) - vf(i,j) + uf(i-1,j) - uf(i,j))*rarea_c(i,j)
           enddo
        enddo
-!$acc exit data delete(uf, vf)
 
 !!$       !Edges
 !!$
@@ -798,11 +813,12 @@ end subroutine divergence_corner_nest
   logical, intent(IN) :: bounded_domain
   type(fv_grid_type), intent(IN), target :: gridstruct
 ! Local
-  real, dimension(bd%isd:bd%ied,bd%jsd:bd%jed):: utmp, vtmp
   integer npt, i, j, ifirst, ilast, id
   integer :: is,  ie,  js,  je
   integer :: isd, ied, jsd, jed
-
+  real    :: tmp1, tmp2, tmp3
+  real    :: utmp(bd%isd:bd%ied,bd%jsd:bd%jed)
+!$acc enter data create(utmp)
 
       is  = bd%is
       ie  = bd%ie
@@ -829,7 +845,8 @@ end subroutine divergence_corner_nest
 ! Initialize the non-existing corner regions
   utmp(:,:) = big_number
   vtmp(:,:) = big_number
-!$acc enter data create(utmp, vtmp)
+
+
  if ( bounded_domain) then
 !$acc parallel loop present(u, utmp)
      do j=jsd+1,jed-1
@@ -964,13 +981,16 @@ end subroutine divergence_corner_nest
 !---------------------------------------------
 ! 4th order interpolation for interior points:
 !---------------------------------------------
-!$acc parallel loop present(v, uc, utmp, ut, cosa_s, rsin2)
+!!$acc parallel loop present(v, uc, utmp, ut, cosa_u, rsin_u) 
+!$acc kernels  !present(v, uc, utmp, ut, cosa_u, rsin_u) 
      do j=js-1,je+1
-        do i=ifirst,ilast
+        !do i=ifirst,ilast
+        do i=0,110
            uc(i,j) = a2*(utmp(i-2,j)+utmp(i+1,j)) + a1*(utmp(i-1,j)+utmp(i,j))
            ut(i,j) = (uc(i,j) - v(i,j)*cosa_u(i,j))*rsin_u(i,j)
         enddo
      enddo
+!$acc end kernels
 
  if (grid_type < 3) then
 ! Xdir:
@@ -1121,8 +1141,7 @@ end subroutine divergence_corner_nest
           enddo
        enddo
  endif
-!$acc exit data delete(utmp, vtmp)
-
+!$acc exit data delete(utmp)
  end subroutine d2a2c_vect
 
 
