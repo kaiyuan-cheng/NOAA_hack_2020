@@ -4,4 +4,4 @@ module load nvhpc/20.9/netcdf-fortran/4.5.3 nvhpc/20.9/netcdf-c/4.7.4-mpi compil
 
 cd exec.omp
 make clean
-make
+make OPENMP=Y

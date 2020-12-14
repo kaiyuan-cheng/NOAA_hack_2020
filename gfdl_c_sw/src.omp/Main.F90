@@ -115,6 +115,8 @@ include 'mpif.h'
   flagstruct%grid_type = 0
   flagstruct%nord = 2
 
+  gridstruct%bounded_domain = .true.
+
   bd%is = isc
   bd%ie = iec
   bd%js = jsc
